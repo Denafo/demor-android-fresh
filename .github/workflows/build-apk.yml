@@ -1,0 +1,56 @@
+name: Build DEMOR Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Flutter source
+        shell: bash
+        run: |
+          zipfile=$(find . -maxdepth 1 -type f -iname 'DEMOR-APP-FRESH-START-SOURCE*.zip' -print -quit)
+          test -n "$zipfile"
+          unzip -q "$zipfile" -d source
+          test -f source/pubspec.yaml
+          test -f source/lib/main.dart
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Prepare Android project
+        working-directory: source
+        run: |
+          flutter create --platforms=android --project-name demor_fashion .
+          python3 scripts/prepare_android.py
+          flutter pub get
+          dart run flutter_launcher_icons
+
+      - name: Build test APK
+        working-directory: source
+        run: flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEMOR-FRESH-APK
+          path: source/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
