@@ -1,0 +1,57 @@
+name: Build DEMOR V3 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract V3 Flutter source
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE=$(find . -maxdepth 1 -type f -iname 'DEMOR-ANDROID-V3-SHARED-CART-SOURCE*.zip' -print -quit)
+          test -n "$FILE"
+          mkdir -p source
+          unzip -q "$FILE" -d source
+          test -f source/pubspec.yaml
+          test -f source/lib/main.dart
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Prepare Android App
+        working-directory: source
+        run: |
+          flutter create --platforms=android --project-name demor_fashion .
+          python3 scripts/prepare_android.py
+          flutter pub get
+          dart run flutter_launcher_icons
+
+      - name: Build APK
+        working-directory: source
+        run: flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEMOR-V3-TEST-APK
+          path: source/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
